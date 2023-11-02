@@ -1,22 +1,31 @@
 import Dispatch
 
+// [问题] 为什么这里要叫做密封剂呢
 enum Sealant<R> {
     case pending(Handlers<R>)
     case resolved(R)
 }
 
+// 本质是一个闭包数组
 final class Handlers<R> {
     var bodies: [(R) -> Void] = []
     func append(_ item: @escaping(R) -> Void) { bodies.append(item) }
 }
 
 /// - Remark: not protocol ∵ http://www.russbishop.net/swift-associated-types-cont
+// 一个基类，定义了三个方法，类似 protocol 的概念
+// [问题] 不过为什么没有用 protocol 呢？
 class Box<T> {
+    // 所以这里的 inspect 就是指 inspect Box 的状态
+    // 查询当前 Box 的状态
     func inspect() -> Sealant<T> { fatalError() }
+    // 暴露出当前 Box 的状态，外部根据 Box 的状态来做一些事情
     func inspect(_: (Sealant<T>) -> Void) { fatalError() }
+    // 接受一个 T
     func seal(_: T) {}
 }
 
+// 一个封好的盒子，里面有一个值，状态已经 resolved 了，并且不能修改。
 final class SealedBox<T>: Box<T> {
     let value: T
 
@@ -29,8 +38,11 @@ final class SealedBox<T>: Box<T> {
     }
 }
 
+
 class EmptyBox<T>: Box<T> {
+    // 表示当前 Box 的状态
     private var sealant = Sealant<T>.pending(.init())
+    // [问题] 一个并行队列，为什么这里要用队列呢？
     private let barrier = DispatchQueue(label: "org.promisekit.barrier", attributes: .concurrent)
 
     override func seal(_ value: T) {
@@ -64,6 +76,7 @@ class EmptyBox<T>: Box<T> {
         return rv
     }
 
+    // 本质上就是读取 Box 的状态，再做一些操作
     override func inspect(_ body: (Sealant<T>) -> Void) {
         var sealed = false
         barrier.sync(flags: .barrier) {
